@@ -10,6 +10,46 @@ from post_generator import generate_linkedin_post
 # We changed BufferPoster to WebhookPoster here:
 from linkedin_poster import WebhookPoster, LocalSaver
 
+def select_news_article(news_items):
+    """
+    Display news articles with ranking scores and let user choose one
+    """
+    if not news_items:
+        print("❌ No news found. Exiting.")
+        return None
+    
+    print("\n📰 Found LLM News Articles (Ranked by Quality):")
+    print("="*80)
+    
+    for i, news in enumerate(news_items, 1):
+        score = news.get('rank_score', 0)
+        # Create a visual score bar
+        score_bar = "█" * (score // 5) + "░" * ((100 - score) // 5)
+        print(f"\n{i}. [{score_bar}] Score: {score}/100")
+        print(f"   Title: {news['title'][:70]}")
+        print(f"   Source: {news['source']}")
+        print(f"   Summary: {news['summary'][:100]}...")
+    
+    print("\n" + "="*80)
+    choice = input(f"\nChoose article (1-{len(news_items)}) or 0 to exit: ").strip()
+    
+    try:
+        choice_num = int(choice)
+        if choice_num == 0:
+            print("⏭ Skipped.")
+            return None
+        elif 1 <= choice_num <= len(news_items):
+            selected = news_items[choice_num - 1]
+            print(f"✅ Selected article with score {selected.get('rank_score', 0)}/100")
+            return selected
+        else:
+            print(f"❌ Invalid choice. Please enter 1-{len(news_items)}")
+            return select_news_article(news_items)  # Ask again
+    except ValueError:
+        print("❌ Invalid input. Please enter a number.")
+        return select_news_article(news_items)  # Ask again
+
+
 def run_automation(post_online=False):
     """
     Main automation function
@@ -20,15 +60,21 @@ def run_automation(post_online=False):
     print("="*60)
     
     # Step 1: Fetch latest news
-    print("\n📰 STEP 1: Fetching latest AI news...")
-    news_items = get_top_news(count=1)  # Get top 1 news
+    print("\n📰 STEP 1: Fetching latest LLM news...")
+    news_items = get_top_news(count=5)  # Get top 5 news
     
     if not news_items:
         print("❌ No news found. Exiting.")
         return
     
-    news = news_items[0]
-    print(f"✅ Selected: {news['title'][:60]}...")
+    # Step 1b: Let user choose which article
+    print("\n🔍 STEP 1b: Choose an article to post")
+    news = select_news_article(news_items)
+    
+    if not news:
+        return
+    
+    print(f"\n✅ Selected: {news['title'][:60]}...")
     
     # Step 2: Generate LinkedIn post
     print("\n🤖 STEP 2: Generating LinkedIn post with AI...")
@@ -67,13 +113,19 @@ def run_with_approval():
     print(f"🚀 LinkedIn AI Automation (With Approval)")
     print("="*60)
     
-    # Fetch and generate
-    news_items = get_top_news(count=1)
+    # Fetch and let user choose
+    print("\n📰 Fetching latest LLM news...")
+    news_items = get_top_news(count=5)
     if not news_items:
         print("❌ No news found.")
         return
     
-    news = news_items[0]
+    print("\n🔍 Choose an article to post")
+    news = select_news_article(news_items)
+    
+    if not news:
+        return
+    
     post_content = generate_linkedin_post(news)
     
     if not post_content:

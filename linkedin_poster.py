@@ -3,7 +3,7 @@
 import requests
 import json
 import os
-from config import BUFFER_ACCESS_TOKEN, WEBHOOK_URL
+from config import WEBHOOK_URL
 
 
 class WebhookPoster:

@@ -16,7 +16,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 WEBHOOK_URL = os.getenv("MAKE_WEBHOOK_URL", "").strip('"')
 
 # ===================
-# RSS FEEDS (AI NEWS)
+# RSS FEEDS (LLM NEWS ONLY)
 # ===================
 
 RSS_FEEDS = [
@@ -26,6 +26,21 @@ RSS_FEEDS = [
     "https://www.technologyreview.com/feed/",
     "https://blog.google/technology/ai/rss/",
 ]
+
+# ===================
+# LLM FILTERING
+# ===================
+
+# Keywords to filter for LLM-related news only
+LLM_KEYWORDS = [
+    "llm", "large language model", "gpt", "chatgpt", "claude", "gemini",
+    "mistral", "llama", "deepseek", "qwen", "grok", "groq",
+    "language model", "transformer", "fine-tune", "prompt engineering",
+    "token", "inference", "reasoning model"
+]
+
+# Enable/disable LLM filtering
+FILTER_LLM_ONLY = True
 
 # ===================
 # SETTINGS
