@@ -22,6 +22,12 @@ Automatically fetch AI/ML news from multiple sources and post professionally for
 
 ## Quick Start (Desktop App) 🚀
 
+### Screenshots
+
+![LINK App - About Page](assets/screenshot-about.png)
+
+*LINK App running with terminal-style interface showing the About page*
+
 ### For Users:
 1. **Download** `LINK.exe` from [Releases](https://github.com/ismail-Elkabouri/linkedin-news-automation/releases)
 2. **Run** LINK.exe (no Python installation needed!)
