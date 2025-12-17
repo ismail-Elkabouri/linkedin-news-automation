@@ -2,55 +2,108 @@
 
 Automatically fetch AI/ML news from multiple sources and post professionally formatted content to LinkedIn using AI-generated posts. Perfect for maintaining an active LinkedIn presence without manual effort!
 
+**Now Available as a Desktop App!** 🎉 Download `LINK.exe` - no installation needed!
+
 ## Features ✨
 
-- 📰 **Multi-source News Fetching**: Aggregates AI/ML news from 5 RSS feeds (TechCrunch, The Verge, VentureBeat, MIT Technology Review, Google AI Blog)
+- 📰 **Multi-source News Fetching**: Aggregates AI/ML news from 5 RSS feeds (TechCrench, The Verge, VentureBeat, MIT Technology Review, Google AI Blog)
 - 🤖 **AI-Powered Content Generation**: Uses Groq's LLaMA model to generate professional, engaging LinkedIn posts
 - 📱 **Smart Formatting**: Automatically adds emojis, bold hooks, and compelling CTAs
 - 🔗 **LinkedIn Integration**: Posts directly to LinkedIn via Make.com webhooks
+- 💻 **Desktop GUI App**: Beautiful terminal-style interface (PyQt5)
+- ✏️ **Editable Posts**: Edit generated content before posting
 - 🎯 **3 Posting Modes**:
   - **Mode 1**: Save posts to file for manual review
   - **Mode 2**: Generate with approval before posting
   - **Mode 3**: Auto-post immediately
 - ⏰ **Scheduling Support**: Run daily at a specific time
 - 🎨 **Professional Posts**: Posts include formatted text, emojis, and link previews
+- 🔒 **Secure**: Masked API keys and webhook URLs
+
+## Quick Start (Desktop App) 🚀
+
+### For Users:
+1. **Download** `LINK.exe` from [Releases](https://github.com/ismail-Elkabouri/linkedin-news-automation/releases)
+2. **Run** LINK.exe (no Python installation needed!)
+3. **Configure** in Settings [3]:
+   - Add your Groq API Key (get from https://console.groq.com)
+   - Add your Make.com Webhook URL
+4. **Start using**:
+   - Press `F` to fetch news
+   - Press `G` to generate posts
+   - Edit posts directly in the app
+   - Post or save to file
+
+**Keyboard Shortcuts:**
+| Key | Action |
+|-----|--------|
+| F | Fetch news |
+| G | Generate post |
+| 1 | News Feed |
+| 2 | Post Generator |
+| 3 | Settings |
+| 4 | About |
 
 ## Architecture 🏗️
 
 ```
 linkedin-automation/
+├── gui_app.py             # PyQt5 Desktop GUI application
+├── build_exe.py           # Script to build LINK.exe
 ├── config.py              # Configuration management
-├── news_fetcher.py        # RSS feed aggregation
+├── news_fetcher.py        # RSS feed aggregation & ranking
 ├── post_generator.py      # AI post generation with Groq
 ├── linkedin_poster.py     # LinkedIn posting via Make.com webhook
 ├── main.py                # CLI and automation orchestration
 ├── requirements.txt       # Python dependencies
-├── .env                   # Environment variables (credentials)
+├── .env.example           # Environment variables template
+├── README_DISTRIBUTION.md # Distribution guide
 └── .gitignore            # Git ignore rules
 ```
 
 ## Prerequisites 📋
 
+### For Desktop App:
+- **Windows 7 or later**
+- **Groq API Key** (free at https://console.groq.com)
+- **Make.com Account** (free tier available)
+- **Internet connection**
+
+### For CLI:
 - **Python 3.8+**
 - **Groq API Key** (free at https://console.groq.com)
 - **Make.com Account** (free tier available)
-- **Buffer Account** (optional, for scheduling)
 
 ## Installation 🔧
 
-### 1. Clone the repository
+### Desktop App (Recommended - Easiest)
+1. Download `LINK.exe` from [Releases](https://github.com/ismail-Elkabouri/linkedin-news-automation/releases)
+2. Run the executable
+3. Go to Settings [3] and configure:
+   - GROQ_API_KEY
+   - MAKE_WEBHOOK_URL
+4. Click SAVE SETTINGS
+
+### CLI (Command Line)
+
+#### 1. Clone the repository
 ```bash
 git clone https://github.com/ismail-Elkabouri/linkedin-news-automation.git
 cd linkedin-news-automation
 ```
 
-### 2. Install dependencies
+#### 2. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set up environment variables
-Create a `.env` file in the project root:
+#### 3. Set up environment variables
+Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your credentials:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 MAKE_WEBHOOK_URL=your_make_webhook_url_here
@@ -60,7 +113,36 @@ MAKE_WEBHOOK_URL=your_make_webhook_url_here
 - **GROQ_API_KEY**: Get it from https://console.groq.com
 - **MAKE_WEBHOOK_URL**: Create a scenario in Make.com with a webhook trigger and copy the URL
 
-## Usage 🎯
+#### 4. Build your own .exe (Optional)
+```bash
+pip install pyinstaller
+python build_exe.py
+```
+
+## GUI Features 🎨
+
+### News Feed Page
+- Real-time fetching from 5 RSS sources
+- Automatic LLM article filtering
+- Quality ranking (0-100 score)
+- Click to select articles
+
+### Post Generator Page
+- AI-powered content generation using Groq API
+- **Fully editable post text** before posting
+- Character counter
+- Save, Post, or Copy options
+
+### Settings Page
+- Configure Groq API Key (secure - masked input)
+- Configure Make.com Webhook URL (secure - masked input)
+- Display options (scanline, glow effects)
+- Save settings to .env file
+
+### About Page
+- App information
+- Keyboard shortcuts reference
+- Version history
 
 ### Option 1: Save to File (Review Later)
 ```bash
@@ -97,24 +179,45 @@ python main.py
 
 ## How It Works 🔄
 
+### Desktop App Flow:
 ```
-1. User runs the script
+1. Run LINK.exe
+   ↓
+2. Go to Settings, configure API keys
+   ↓
+3. Go to News Feed, click FETCH NEWS
+   ↓
+4. Browse articles (ranked by quality)
+   ↓
+5. Click article to select
+   ↓
+6. Go to Generator, click GENERATE POST
+   ↓
+7. Edit post text as needed
+   ↓
+8. Click SAVE or POST TO LINK
+   ↓
+9. If posting: Sends to Make.com webhook
+   ↓
+10. Make.com → Buffer → LinkedIn
+```
+
+### CLI Flow:
+
+```
+1. User runs main.py
    ↓
 2. Fetches latest AI news from RSS feeds
    ↓
-3. Selects the most relevant article
+3. Selects the most relevant article (auto or manual)
    ↓
 4. Generates professional post using Groq AI
    ↓
-5. User chooses action (save/review/post immediately)
+5. User chooses action (save/review/post/schedule)
    ↓
 6. If posting: Sends to Make.com webhook
    ↓
-7. Make.com triggers Buffer
-   ↓
-8. Buffer posts to LinkedIn
-   ↓
-9. Post appears on your LinkedIn profile!
+7. Make.com → Buffer → LinkedIn
 ```
 
 ## Post Format Example 📝
