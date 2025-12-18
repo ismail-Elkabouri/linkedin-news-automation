@@ -12,15 +12,17 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QFontDatabase, QPalette, QIcon
+import html
 
 try:
     from news_fetcher import fetch_latest_news, rank_and_sort_news
-    from post_generator import generate_linkedin_post
+    from post_generator import generate_linkedin_post, client as groq_client
 except ImportError:
     print("Warning: Could not import news modules")
     fetch_latest_news = None
     rank_and_sort_news = None
     generate_linkedin_post = None
+    groq_client = None
 
 
 class NewsWorker(QThread):
@@ -64,6 +66,34 @@ class PostGeneratorWorker(QThread):
             
             post = generate_linkedin_post(self.news_item)
             self.finished.emit(post)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class ChatWorker(QThread):
+    """Worker to call Groq chat API off the main thread"""
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, context, user_text, groq_client):
+        super().__init__()
+        self.context = context
+        self.user_text = user_text
+        self.groq_client = groq_client
+
+    def run(self):
+        try:
+            response = self.groq_client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=[
+                    {"role": "system", "content": "You are an expert assistant that discusses AI news articles concisely and helpfully."},
+                    {"role": "user", "content": self.context + "User: " + self.user_text}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            ai_reply = response.choices[0].message.content
+            self.finished.emit(ai_reply)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -320,6 +350,7 @@ class LinkedInTerminalApp(QMainWindow):
         self.news_widgets = []
         self.nav_buttons = []
         self.settings = {}  # Store settings
+        self.chat_messages = []  # store (role, text) tuples for chat history
         
         self.init_fonts()
         self.load_settings()
@@ -599,7 +630,8 @@ class LinkedInTerminalApp(QMainWindow):
             ("1", "News Feed"),
             ("2", "Generator"),
             ("3", "Settings"),
-            ("4", "About")
+            ("4", "About"),
+            ("5", "Chat")
         ]
         
         for i, (num, text) in enumerate(nav_items):
@@ -668,6 +700,7 @@ class LinkedInTerminalApp(QMainWindow):
         self.stacked.addWidget(self.create_generator_page())
         self.stacked.addWidget(self.create_settings_page())
         self.stacked.addWidget(self.create_about_page())
+        self.stacked.addWidget(self.create_chat_page())
         
         layout.addWidget(self.stacked)
         
@@ -929,7 +962,7 @@ class LinkedInTerminalApp(QMainWindow):
                 color: {TerminalColors.TEXT_WHITE};
                 border: 1px solid {TerminalColors.BORDER};
                 border-radius: 4px;
-                padding: 15px;
+                padding: 20px;
             }}
         """)
         layout.addWidget(self.post_output)
@@ -1029,7 +1062,7 @@ class LinkedInTerminalApp(QMainWindow):
                 color: {TerminalColors.TEXT_WHITE};
                 border: 1px solid {TerminalColors.BORDER};
                 border-radius: 4px;
-                padding: 10px;
+                padding: 15px;
             }}
             QLineEdit:focus {{
                 border-color: {TerminalColors.TEXT_GREEN};
@@ -1054,7 +1087,7 @@ class LinkedInTerminalApp(QMainWindow):
                 color: {TerminalColors.TEXT_WHITE};
                 border: 1px solid {TerminalColors.BORDER};
                 border-radius: 4px;
-                padding: 10px;
+                padding: 15px;
             }}
             QLineEdit:focus {{
                 border-color: {TerminalColors.TEXT_GREEN};
@@ -1155,8 +1188,9 @@ class LinkedInTerminalApp(QMainWindow):
         # Save button
         save_btn = TerminalButton("SAVE SETTINGS", TerminalColors.TEXT_GREEN)
         save_btn.setMinimumWidth(220)
+        save_btn.setMaximumWidth(220)
         save_btn.clicked.connect(self.save_settings_clicked)
-        layout.addWidget(save_btn)
+        layout.addWidget(save_btn, alignment=Qt.AlignLeft)
         
         layout.addStretch()
         
@@ -1168,6 +1202,176 @@ class LinkedInTerminalApp(QMainWindow):
         
         return page
     
+    def create_chat_page(self):
+        """Create the AI chat page for discussing selected article"""
+        page = QFrame()
+        page.setStyleSheet(f"background-color: {TerminalColors.BG_DARK};")
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(10)
+
+        header = GlowLabel("> AI_CHAT.exe", TerminalColors.TEXT_PURPLE)
+        header.setFont(QFont(self.mono_font.family(), 18, QFont.Bold))
+        layout.addWidget(header)
+
+        subtitle = QLabel("Chat with Groq AI about the selected news article")
+        subtitle.setFont(QFont(self.mono_font.family(), 10))
+        subtitle.setStyleSheet(f"color: {TerminalColors.TEXT_GRAY};")
+        layout.addWidget(subtitle)
+
+        # Chat history (styled as chat bubbles)
+        self.chat_history = QTextEdit()
+        self.chat_history.setReadOnly(True)
+        self.chat_history.setMinimumHeight(320)
+        self.chat_history.setFont(QFont(self.mono_font.family(), 10))
+        self.chat_history.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {TerminalColors.BG_INPUT};
+                color: {TerminalColors.TEXT_WHITE};
+                border: 1px solid {TerminalColors.BORDER};
+                border-radius: 8px;
+                padding: 12px;
+            }}
+        """)
+        # Initial hint
+        self.chat_history.setHtml(f"<div style='color:{TerminalColors.TEXT_GRAY};'>No messages yet. Select an article and start the conversation.</div>")
+        layout.addWidget(self.chat_history)
+
+        # Input area
+        input_frame = QFrame()
+        input_layout = QHBoxLayout(input_frame)
+        input_layout.setContentsMargins(0,0,0,0)
+        input_layout.setSpacing(8)
+
+        self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText("Ask the AI about the selected article... (Press Enter to send)")
+        self.chat_input.setFont(self.mono_font)
+        self.chat_input.setStyleSheet(f"background-color:{TerminalColors.BG_HEADER}; color:{TerminalColors.TEXT_WHITE}; padding:10px; border-radius:6px;")
+        # Send on Enter
+        self.chat_input.returnPressed.connect(self.send_chat_message)
+        input_layout.addWidget(self.chat_input, 1)
+
+        self.chat_send_btn = TerminalButton("SEND", TerminalColors.TEXT_GREEN)
+        self.chat_send_btn.setMinimumWidth(120)
+        self.chat_send_btn.clicked.connect(self.send_chat_message)
+        # neutral, minimal button style (no bright colors)
+        self.chat_send_btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {TerminalColors.TEXT_WHITE}; border: 1px solid {TerminalColors.BORDER}; padding: 10px 12px; border-radius: 6px; }} QPushButton:hover {{ background-color: {TerminalColors.BG_HEADER}; }}")
+        input_layout.addWidget(self.chat_send_btn)
+
+        clear_btn = TerminalButton("CLEAR", TerminalColors.TEXT_YELLOW)
+        clear_btn.setMinimumWidth(100)
+        clear_btn.clicked.connect(self.clear_chat)
+        clear_btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {TerminalColors.TEXT_WHITE}; border: 1px solid {TerminalColors.BORDER}; padding: 10px 12px; border-radius: 6px; }} QPushButton:hover {{ background-color: {TerminalColors.BG_HEADER}; }}")
+        input_layout.addWidget(clear_btn)
+
+        layout.addWidget(input_frame)
+
+        return page
+
+    def render_chat_messages(self):
+        """Render chat messages stored in self.chat_messages as chat bubbles"""
+        rendered = ""
+        for role, text in self.chat_messages:
+            safe = html.escape(str(text))
+            # preserve newlines
+            safe = safe.replace('\n', '<br>')
+            if role == 'user':
+                bubble = (
+                    f"<div style='text-align:right; margin:8px 0;'>"
+                    f"<div style='display:inline-block; background:{TerminalColors.BG_HEADER}; color:{TerminalColors.TEXT_WHITE}; padding:10px 14px; border-radius:12px; max-width:70%; white-space:pre-wrap; word-break:break-word;'>{safe}</div>"
+                    f"</div>"
+                )
+            elif role == 'assistant':
+                bubble = (
+                    f"<div style='text-align:left; margin:8px 0;'>"
+                    f"<div style='display:inline-block; background:{TerminalColors.BG_INPUT}; color:{TerminalColors.TEXT_WHITE}; padding:10px 14px; border-radius:12px; max-width:70%; white-space:pre-wrap; word-break:break-word;'>{safe}</div>"
+                    f"</div>"
+                )
+            else:
+                bubble = f"<div style='color:{TerminalColors.TEXT_GRAY}; margin:6px 0;'>{safe}</div>"
+            rendered += bubble
+        self.chat_history.setHtml(rendered)
+        self.chat_history.verticalScrollBar().setValue(self.chat_history.verticalScrollBar().maximum())
+
+    def clear_chat(self):
+        """Clear chat history"""
+        self.chat_messages = []
+        self.chat_history.setHtml(f"<div style='color:{TerminalColors.TEXT_GRAY};'>No messages yet. Select an article and start the conversation.</div>")
+
+    def send_chat_message(self):
+        """Send a message to the Groq AI chat model using a background worker"""
+        user_text = self.chat_input.text().strip()
+        if not user_text:
+            return
+
+        # Append user message and a placeholder assistant message
+        self.chat_messages.append(('user', user_text))
+        self.chat_messages.append(('assistant', 'AI is typing...'))
+        self.render_chat_messages()
+        self.chat_input.clear()
+
+        # Build context from selected article if available
+        context = ""
+        if getattr(self, "selected_news", None):
+            news = self.selected_news
+            context = f"Article Title: {news.get('title')}\nSummary: {news.get('summary')}\nLink: {news.get('link')}\n\n"
+
+        if not groq_client:
+            # Replace placeholder with error
+            if self.chat_messages and self.chat_messages[-1][0] == 'assistant':
+                self.chat_messages[-1] = ('assistant', 'Groq client not available (import error).')
+            else:
+                self.chat_messages.append(('assistant', 'Groq client not available (import error).'))
+            self.render_chat_messages()
+            return
+
+        # Disable input while waiting
+        self.chat_input.setDisabled(True)
+        try:
+            self.chat_send_btn.setDisabled(True)
+        except Exception:
+            pass
+
+        # Start background worker
+        self.chat_worker = ChatWorker(context, user_text, groq_client)
+        self.chat_worker.finished.connect(self.on_chat_finished)
+        self.chat_worker.error.connect(self.on_chat_error)
+        self.chat_worker.start()
+
+    def on_chat_finished(self, ai_reply):
+        # Replace the last assistant placeholder with the real reply
+        if self.chat_messages and self.chat_messages[-1][0] == 'assistant':
+            self.chat_messages[-1] = ('assistant', ai_reply)
+        else:
+            self.chat_messages.append(('assistant', ai_reply))
+        self.render_chat_messages()
+        self.chat_input.setDisabled(False)
+        try:
+            self.chat_send_btn.setDisabled(False)
+        except Exception:
+            pass
+        try:
+            self.chat_worker.quit()
+        except Exception:
+            pass
+
+    def on_chat_error(self, err_msg):
+        err_text = f"Error contacting Groq API: {err_msg}"
+        if self.chat_messages and self.chat_messages[-1][0] == 'assistant':
+            self.chat_messages[-1] = ('assistant', err_text)
+        else:
+            self.chat_messages.append(('assistant', err_text))
+        self.render_chat_messages()
+        self.chat_input.setDisabled(False)
+        try:
+            self.chat_send_btn.setDisabled(False)
+        except Exception:
+            pass
+        try:
+            self.chat_worker.quit()
+        except Exception:
+            pass
+
     def create_about_page(self):
         """Create the about page"""
         page = QFrame()
